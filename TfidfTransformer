@@ -1,0 +1,107 @@
+import numpy as np 
+import io
+import pandas as pd
+import matplotlib.pyplot as plt
+import re
+import nltk
+from sklearn.feature_extraction.text import CountVectorizer
+import re 
+from sklearn.feature_extraction.text import TfidfTransformer
+
+%matplotlib inline
+plt.rcParams['figure.figsize'] = (10.0, 8.0)
+import seaborn as sns
+from scipy import stats
+from scipy.stats import norm
+from google.colab import files
+uploaded = files.upload()
+train = pd.read_csv(io.BytesIO(uploaded['train.csv']))
+train.info()
+sns.heatmap(train.isnull())
+
+
+numeric_data = train.select_dtypes(include=[np.number])
+del numeric_data['patient_id']
+#correlation plot
+corr = numeric_data.corr()
+sns.heatmap(corr)
+
+#numeric_data = train.select_dtypes(include=[np.number])
+#del numeric_data['Id']
+
+print (corr['base_score'].sort_values(ascending=False)[:3], '\n')
+
+
+pivot = train.pivot_table(index='effectiveness_rating', values='base_score', aggfunc=np.median)
+
+sns.jointplot(x=train['effectiveness_rating'], y=train['base_score'])
+
+
+nltk.download('stopwords') #Must only be downloaded once 
+from nltk.corpus import stopwords #Includes a list of words that souldn't appear in the reivews
+#Create own list of stopwords
+language = 'english'
+my_stopwords = stopwords.words(language) 
+words_to_be_included = ['not','nor','no'] #That should be part the reviews
+words_to_be_excluded = ['opinion'] #That shouldn't be part of the reviews
+no_reviews = 1000
+maximum_features = 1500 #Maximum elements that the Bag of Words could contain
+test_set_size = 0.2 #Percentage of the test set
+    
+#Append the words from to_be_excluded_words to my_stopwords
+for word in words_to_be_excluded:
+    if not any ( word in stpwords for stpwords in my_stopwords):
+        my_stopwords.append(word)
+#Remove words from my_stopwords that are present in to_be_included
+for word in words_to_be_included:
+    if any (word in stpwords for stpwords in my_stopwords):
+        my_stopwords.remove(word)
+        
+        
+df = train["review_by_patient"]
+dataset=df.to_frame()
+#dataset.info()
+#Stemming is the process of extracting the stem of each word e.g. "loved"->"love"
+from nltk.stem.porter import PorterStemmer
+    
+corpus =[] #Will contain the clean reviews"
+for i in range (0, no_reviews):
+    review = re.sub('[^a-zA-Z]',' ', dataset['review_by_patient'][i]) #Removes all other characters besides the letters and puts the review in a string
+    review = review.lower() #Transforms all UPPER-CASE characters to lower-case
+    review = review.split() #Separates all the words from the review string and puts them in a list
+    ps = PorterStemmer() 
+    review = [ps.stem(word) for word in review if not word in set (my_stopwords)] #Remove irrelevant words from rewiews and stems all words  
+    review = ' '.join(review) 
+    corpus.append(review) #Append review string to corpus
+print(corpus)     
+
+
+
+
+
+cv = CountVectorizer(max_features = maximum_features) #Object for creating the sparse matrix 
+X = cv.fit_transform(corpus).toarray() #Sparse matrix 
+#y = dataset.iloc[:,1].values #Array with the dependent variable for each review (Liked = 1, Disliked = 0)
+print(X)
+
+#X.shape
+nnz = np.count_nonzero(X)
+sparsity = ( nnz/(X.shape[0]*X.shape[1]))
+print(sparsity)
+
+
+
+tfidf_tranformer = TfidfTransformer().fit(X)
+tfidf = tfidf_tranformer.transform(X)
+
+
+#classification using NaiveBayes
+from sklearn.naive_bayes import MultinomialNB
+review_model1 = MultinomialNB().fit(tfidf,train['base_score'])
+#review_model1.predict(tfidf)
+
+
+        
+        
+        
+        
